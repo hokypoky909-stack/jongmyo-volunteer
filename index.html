@@ -485,6 +485,15 @@
   }
   .form-input.error { border-color: var(--red); }
 
+  .form-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238C7B5C' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    cursor: pointer;
+  }
+
   .mapa-section-title {
     font-family: 'Noto Serif KR', serif;
     font-size: 16px;
@@ -772,6 +781,46 @@
     .mapa-btn { padding: 16px 8px 14px; }
     .mapa-svg { width: 85px; height: 85px; }
   }
+  /* 중복 신청 모달 */
+  .duplicate-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(26,18,8,0.85);
+    display: none; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .duplicate-overlay.show { display: flex; }
+  .duplicate-modal {
+    background: var(--paper);
+    border-radius: 20px;
+    padding: 36px 28px;
+    text-align: center;
+    max-width: 320px; width: 100%;
+    border: 2px solid rgba(212,160,23,0.3);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .duplicate-icon { font-size: 48px; margin-bottom: 16px; }
+  .duplicate-title {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 20px; font-weight: 900;
+    color: var(--ink); margin-bottom: 12px;
+  }
+  .duplicate-desc {
+    font-size: 14px; color: var(--muted);
+    line-height: 1.8; margin-bottom: 24px;
+  }
+  .duplicate-desc strong { color: var(--ink); }
+  .duplicate-btn {
+    background: linear-gradient(135deg, var(--red), #D04040);
+    color: white;
+    font-family: 'Noto Serif KR', serif;
+    font-weight: 700; font-size: 15px;
+    padding: 14px 40px;
+    border: none; border-radius: 40px;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .duplicate-btn:hover { transform: translateY(-2px); }
+
   /* 저작권 푸터 */
   .site-footer {
     position: fixed;
@@ -1006,8 +1055,27 @@
   <div class="form-body">
     <div class="form-group">
       <label class="form-label" for="dept">소속 부서 (팀명)</label>
-      <input class="form-input" type="text" id="dept" placeholder="예: 관광사업팀" oninput="checkFormReady()" />
-      <div class="error-msg" id="dept-error">소속 부서를 입력해주세요.</div>
+      <select class="form-input form-select" id="dept" onchange="checkFormReady()">
+        <option value="">— 부서를 선택해주세요 —</option>
+        <option value="감사관">감사관</option>
+        <option value="홍보팀">홍보팀</option>
+        <option value="기획예산팀">기획예산팀</option>
+        <option value="인사팀">인사팀</option>
+        <option value="경영지원팀">경영지원팀</option>
+        <option value="AI혁신팀">AI혁신팀</option>
+        <option value="글로벌마케팅팀">글로벌마케팅팀</option>
+        <option value="MICE전략팀">MICE전략팀</option>
+        <option value="MICE마케팅팀">MICE마케팅팀</option>
+        <option value="디지털마케팅팀">디지털마케팅팀</option>
+        <option value="관광브랜드팀">관광브랜드팀</option>
+        <option value="글로벌관광산업팀">글로벌관광산업팀</option>
+        <option value="관광자원개발팀">관광자원개발팀</option>
+        <option value="관광축제이벤트팀">관광축제이벤트팀</option>
+        <option value="관광인프라팀">관광인프라팀</option>
+        <option value="관광서비스팀">관광서비스팀</option>
+        <option value="예술상생관광팀">예술상생관광팀</option>
+      </select>
+      <div class="error-msg" id="dept-error">소속 부서를 선택해주세요.</div>
     </div>
     <div class="form-group">
       <label class="form-label" for="name">성명</label>
@@ -1271,7 +1339,7 @@ function updateSubmitBtn() {
 // ─────────────────────────────────────────────
 // 제출 처리
 // ─────────────────────────────────────────────
-function handleSubmit() {
+async function handleSubmit() {
   const dept = document.getElementById('dept').value.trim();
   const name = document.getElementById('name').value.trim();
 
@@ -1296,8 +1364,25 @@ function handleSubmit() {
   if (!state.mapa) { return; }
   if (!valid) return;
 
+  // 버튼 로딩 상태
+  const submitBtn = document.getElementById('btn-submit');
+  submitBtn.style.pointerEvents = 'none';
+  submitBtn.textContent = '⏳ 확인 중...';
+
+  // 중복 체크
+  const isDuplicate = await checkDuplicate(dept, name);
+  if (isDuplicate) {
+    submitBtn.style.pointerEvents = 'auto';
+    submitBtn.innerHTML = '🏮 &nbsp;인패 들고 종묘 입장하기 (참여 신청)';
+    showDuplicateAlert(name);
+    return;
+  }
+
   state.dept = dept;
   state.name = name;
+
+  submitBtn.style.pointerEvents = 'auto';
+  submitBtn.innerHTML = '🏮 &nbsp;인패 들고 종묘 입장하기 (참여 신청)';
 
   // 결과 페이지 구성
   buildResultPage();
@@ -1580,6 +1665,28 @@ function buildCharSvg(type) {
 }
 
 // ─────────────────────────────────────────────
+// 중복 참여 체크
+// ─────────────────────────────────────────────
+async function checkDuplicate(dept, name) {
+  if (WEBHOOK_URL.includes('YOUR_SCRIPT_ID')) return false; // 테스트 모드
+  try {
+    const url = WEBHOOK_URL + '?action=check&dept=' + encodeURIComponent(dept) + '&name=' + encodeURIComponent(name);
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.duplicate === true;
+  } catch (err) {
+    console.error('중복 체크 실패:', err);
+    return false; // 오류 시 통과
+  }
+}
+
+function showDuplicateAlert(name) {
+  const overlay = document.getElementById('duplicate-overlay');
+  document.getElementById('duplicate-name').textContent = name;
+  overlay.classList.add('show');
+}
+
+// ─────────────────────────────────────────────
 // Google Sheets 저장
 // ─────────────────────────────────────────────
 async function saveToSheets(dept, name, mapa) {
@@ -1641,38 +1748,58 @@ document.addEventListener('DOMContentLoaded', () => {
        try {
          var data = JSON.parse(e.postData.contents);
          var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-         
-         // 헤더가 없으면 생성
          if (sheet.getLastRow() === 0) {
-           sheet.appendRow(['신청일시', '부서', '성명', '마패', '전생신분', '행사', '봉사인정시간']);
+           sheet.appendRow(['신청일시', '부서', '성명']);
          }
-         
-         sheet.appendRow([
-           data.timestamp,
-           data.dept,
-           data.name,
-           data.mapa,
-           data.role,
-           data.event,
-           data.hours
-         ]);
-         
+         sheet.appendRow([data.timestamp, data.dept, data.name]);
          return ContentService
-           .createTextOutput(JSON.stringify({status: 'ok'}))
+           .createTextOutput(JSON.stringify({status:'ok'}))
            .setMimeType(ContentService.MimeType.JSON);
        } catch(err) {
          return ContentService
-           .createTextOutput(JSON.stringify({status: 'error', message: err.toString()}))
+           .createTextOutput(JSON.stringify({status:'error', message:err.toString()}))
            .setMimeType(ContentService.MimeType.JSON);
        }
      }
      
      function doGet(e) {
-       return ContentService.createTextOutput('Jongmyo Volunteer Webhook Active');
+       // 중복 체크
+       if (e.parameter.action === 'check') {
+         var dept = e.parameter.dept;
+         var name = e.parameter.name;
+         var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+         var data = sheet.getDataRange().getValues();
+         var duplicate = false;
+         for (var i = 1; i < data.length; i++) {
+           if (data[i][1] === dept && data[i][2] === name) {
+             duplicate = true;
+             break;
+           }
+         }
+         return ContentService
+           .createTextOutput(JSON.stringify({duplicate: duplicate}))
+           .setMimeType(ContentService.MimeType.JSON);
+       }
+       return ContentService.createTextOutput('OK');
      }
      
      --- 끝 ---
 ══════════════════════════════ -->
+
+<!-- 중복 신청 알림 모달 -->
+<div class="duplicate-overlay" id="duplicate-overlay">
+  <div class="duplicate-modal">
+    <div class="duplicate-icon">🏮</div>
+    <h3 class="duplicate-title">이미 신청하셨습니다</h3>
+    <p class="duplicate-desc">
+      <strong id="duplicate-name"></strong>님은<br>
+      이미 참가 신청이 완료된 상태입니다.
+    </p>
+    <button class="duplicate-btn" onclick="document.getElementById('duplicate-overlay').classList.remove('show')">
+      확인
+    </button>
+  </div>
+</div>
 
 <!-- 저작권 푸터 (모든 페이지 공통 고정) -->
 <footer class="site-footer">
